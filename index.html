@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Site Attendance</title>
+<meta name="theme-color" content="#1B1F27">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Attendance">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -269,15 +274,84 @@
     return 'dev_' + Math.abs(hash).toString(36);
   }
   const deviceId = getDeviceId();
+
+  // ============ PWA: home-screen icon + standalone launch ============
+  function makeIconDataUrl(size){
+    const c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#1B1F27';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#F2C230';
+    ctx.beginPath();
+    ctx.arc(size/2, size*0.42, size*0.22, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#F2C230';
+    ctx.lineWidth = size*0.06;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(size*0.30, size*0.72);
+    ctx.quadraticCurveTo(size/2, size*0.58, size*0.70, size*0.72);
+    ctx.lineTo(size*0.5, size*0.95);
+    ctx.closePath();
+    ctx.stroke();
+    return c.toDataURL('image/png');
+  }
+
+  function setupPwa(){
+    try{
+      const icon192 = makeIconDataUrl(192);
+      const icon512 = makeIconDataUrl(512);
+
+      const manifest = {
+        name: isDashboard ? 'Attendance Dashboard' : 'Site Attendance',
+        short_name: isDashboard ? 'Dashboard' : 'Attendance',
+        start_url: window.location.href,
+        scope: baseUrl,
+        display: 'standalone',
+        background_color: '#1B1F27',
+        theme_color: '#1B1F27',
+        icons: [
+          { src: icon192, sizes: '192x192', type: 'image/png' },
+          { src: icon512, sizes: '512x512', type: 'image/png' }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = URL.createObjectURL(blob);
+      document.head.appendChild(link);
+
+      const appleIcon = document.createElement('link');
+      appleIcon.rel = 'apple-touch-icon';
+      appleIcon.href = icon192;
+      document.head.appendChild(appleIcon);
+
+      if('serviceWorker' in navigator){
+        navigator.serviceWorker.register('./sw.js').catch(()=>{ /* sw.js not deployed yet -- fine, icon still works */ });
+      }
+    }catch(e){ console.error('PWA setup failed', e); }
+  }
+  setupPwa();
   let clockTimer = null;
 
+  let lastLocationError = null;
   function getLocation(){
+    lastLocationError = null;
     return new Promise(resolve=>{
-      if(!navigator.geolocation){ resolve(null); return; }
+      if(!navigator.geolocation){
+        lastLocationError = 'This browser has no location support.';
+        resolve(null);
+        return;
+      }
       navigator.geolocation.getCurrentPosition(
         pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
-        () => resolve(null),
-        { enableHighAccuracy:true, timeout:8000, maximumAge:0 }
+        (err) => {
+          const reasons = { 1: 'Permission denied — allow location for this site in browser settings.', 2: 'Location unavailable on this device.', 3: 'Timed out getting a location.' };
+          lastLocationError = reasons[err.code] || 'Could not get location.';
+          resolve(null);
+        },
+        { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
       );
     });
   }
@@ -571,12 +645,16 @@
 
   function showTicket(card, employees, entry){
     const isIn = entry.type === 'in';
+    const locNote = (entry.lat == null && lastLocationError)
+      ? `<div class="fine-print" style="margin-top:14px;">📍 ${escapeHtml(lastLocationError)}</div>`
+      : '';
     card.innerHTML = `
       <div class="ticket">
         <div class="badge ${isIn?'':'out'}">${isIn?'✓ Checked In':'✓ Checked Out'}</div>
         <div class="name">${escapeHtml(entry.name)}</div>
         <div class="ts">${new Date(entry.ts).toLocaleDateString()} · ${fmtTime(entry.ts)}</div>
         <div class="note">Returning to name list…</div>
+        ${locNote}
       </div>
     `;
     setTimeout(()=>showNamePicker(card, employees), 2500);
@@ -722,7 +800,7 @@
   async function refreshDashboard(){
     const [employees, log, config] = await Promise.all([getEmployees(), getLog(), getConfig()]);
     siteGeo = (config.siteLat && config.siteLng)
-      ? { lat: parseFloat(config.siteLat), lng: parseFloat(config.siteLng), radius: parseFloat(config.siteRadius) || 150 }
+      ? { lat: parseFloat(config.siteLat), lng: parseFloat(config.siteLng), radius: parseFloat(config.siteRadius) || 10 }
       : null;
     renderSiteLocStatus();
     renderEmpChips(employees);
@@ -750,7 +828,7 @@
     await Promise.all([
       setConfigValueApi('siteLat', loc.lat),
       setConfigValueApi('siteLng', loc.lng),
-      setConfigValueApi('siteRadius', 150)
+      setConfigValueApi('siteRadius', 10)
     ]);
     refreshDashboard();
   }
