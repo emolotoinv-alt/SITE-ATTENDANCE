@@ -410,13 +410,20 @@
     await apiTest();
     app.innerHTML = `
       <div class="topbar">
-        <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance</span></div>
+        <div class="brand"><span class="dot" id="secretDot"></span><span class="eyebrow">Site Attendance</span></div>
       </div>
       ${errorBannerHtml()}
       <div class="kiosk-card" id="card">
         <div class="loading">Loading employee list…</div>
       </div>
     `;
+    let tapCount = 0, tapTimer = null;
+    document.getElementById('secretDot').addEventListener('click', ()=>{
+      tapCount++;
+      if(tapTimer) clearTimeout(tapTimer);
+      tapTimer = setTimeout(()=>{ tapCount = 0; }, 2000);
+      if(tapCount >= 5){ window.location.href = dashboardUrl(); }
+    });
     const card = document.getElementById('card');
     const employees = await getEmployees();
 
