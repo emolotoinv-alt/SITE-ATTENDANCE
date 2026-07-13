@@ -324,6 +324,19 @@
   async function clearLogApi(){
     return apiPost({ action:'clearLog' });
   }
+  async function getConfig(){
+    try{
+      const res = await fetch(`${API_URL}?action=config`);
+      const data = await res.json();
+      return (data && typeof data === 'object') ? data : {};
+    }catch(e){
+      noteError('Loading dashboard config', e);
+      return {};
+    }
+  }
+  async function setConfigValueApi(key, value){
+    return apiPost({ action:'setConfigValue', key, value });
+  }
   function errorBannerHtml(){
     return lastStorageError
       ? `<div class="error-banner">⚠ ${escapeHtml(lastStorageError)}<br>Changes won't be saved until this is resolved.</div>`
@@ -398,7 +411,6 @@
     app.innerHTML = `
       <div class="topbar">
         <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance</span></div>
-        <a class="mode-link" href="${dashboardUrl()}">Dashboard →</a>
       </div>
       ${errorBannerHtml()}
       <div class="kiosk-card" id="card">
@@ -507,8 +519,59 @@
   }
 
   let pollTimer;
+  let dashboardAuthorized = false;
+
   async function renderDashboard(skipTest){
     if(!API_URL){ renderConfig(true); return; }
+    if(!dashboardAuthorized){ renderPinGate(skipTest); return; }
+    renderDashboardInner(skipTest);
+  }
+
+  async function renderPinGate(skipTest){
+    app.innerHTML = `
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance — Dashboard</span></div>
+      </div>
+      <div class="kiosk-card" id="card">
+        <div class="loading">Checking access…</div>
+      </div>
+    `;
+    const card = document.getElementById('card');
+    const config = await getConfig();
+    const hasPin = !!(config && config.pin);
+
+    card.innerHTML = `
+      <div class="kiosk-head">
+        <h1>${hasPin ? 'Dashboard Access' : 'Create a Dashboard PIN'}</h1>
+        <p>${hasPin ? 'Enter the PIN to manage employees and view the log.' : 'This protects the dashboard — employees who scan the check-in QR code will never see this screen.'}</p>
+      </div>
+      <div class="add-row" style="margin-bottom:10px;">
+        <input type="password" inputmode="numeric" id="pinInput" placeholder="${hasPin ? 'Enter PIN' : 'Choose a PIN (4+ digits)'}">
+      </div>
+      <button class="stamp-btn" id="pinBtn" style="width:100%;padding:14px;font-size:15px;">${hasPin ? 'Unlock' : 'Save PIN & Continue'}</button>
+      <div id="pinMsg" style="margin-top:14px;font-size:13px;color:var(--alert);"></div>
+    `;
+    const msg = document.getElementById('pinMsg');
+    const submit = async ()=>{
+      const val = document.getElementById('pinInput').value.trim();
+      if(val.length < 4){ msg.textContent = 'PIN must be at least 4 digits.'; return; }
+      if(hasPin){
+        if(val !== String(config.pin)){ msg.textContent = 'Incorrect PIN.'; return; }
+        dashboardAuthorized = true;
+        renderDashboardInner(skipTest);
+      }else{
+        msg.textContent = 'Saving…';
+        const ok = await setConfigValueApi('pin', val);
+        if(!ok){ msg.textContent = lastStorageError || 'Could not save PIN, try again.'; return; }
+        dashboardAuthorized = true;
+        renderDashboardInner(skipTest);
+      }
+    };
+    document.getElementById('pinBtn').addEventListener('click', submit);
+    document.getElementById('pinInput').addEventListener('keydown', e=>{ if(e.key==='Enter') submit(); });
+  }
+
+  async function renderDashboardInner(skipTest){
     if(!skipTest) await apiTest();
     app.innerHTML = `
       <div class="topbar">
@@ -611,7 +674,7 @@
     const ok = await addEmployeeApi(name);
     input.value = '';
     if(!ok){
-      renderDashboard(true);
+      renderDashboardInner(true);
       return;
     }
     refreshDashboard();
