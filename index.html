@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Site Attendance</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root{
+    --ink:#1B1F27;
+    --ink-2:#262B36;
+    --paper:#F5F3EC;
+    --paper-2:#EAE6D9;
+    --line:#C9C2AE;
+    --accent:#F2C230;
+    --accent-ink:#3A2E00;
+    --alert:#E4572E;
+    --stamp:#2E7D5B;
+    --stamp-out:#8A5CF6;
+    --text-dim:#9AA0AC;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Sans',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    font-size:11px;
+    color:var(--accent);
+  }
+  h1,h2,h3{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+    margin:0;
+  }
+  button{font-family:inherit;cursor:pointer;}
+  ::selection{background:var(--accent);color:var(--ink);}
+
+  .shell{max-width:900px;margin:0 auto;padding:28px 20px 60px;}
+  .topbar{
+    display:flex;justify-content:space-between;align-items:center;
+    margin-bottom:28px;padding-bottom:16px;border-bottom:1px solid #333A47;
+  }
+  .topbar .brand{display:flex;align-items:center;gap:10px;}
+  .topbar .brand .dot{width:10px;height:10px;background:var(--accent);border-radius:50%;}
+  .topbar a, .mode-link{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-dim);
+    text-decoration:none;border:1px solid #3A4150;padding:6px 12px;border-radius:3px;
+    transition:border-color .15s, color .15s;
+  }
+  .topbar a:hover{border-color:var(--accent);color:var(--accent);}
+
+  .kiosk-card{
+    background:var(--paper);color:var(--ink);
+    border-radius:6px;padding:36px 30px;
+    box-shadow:0 20px 50px rgba(0,0,0,.35);
+    position:relative;overflow:hidden;
+  }
+  .kiosk-card::before{
+    content:"";position:absolute;top:0;left:0;right:0;height:6px;
+    background:repeating-linear-gradient(90deg,var(--accent) 0 18px, transparent 18px 26px);
+  }
+  .kiosk-head{margin-bottom:26px;}
+  .kiosk-head h1{font-size:26px;color:var(--ink);}
+  .kiosk-head p{margin:6px 0 0;color:#5b5646;font-size:14px;}
+
+  .name-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
+  .name-btn{
+    background:#fff;border:1.5px solid var(--line);border-radius:5px;
+    padding:16px 10px 12px;font-size:15px;font-weight:600;color:var(--ink);
+    transition:transform .1s, border-color .15s, background .15s;
+    text-align:center;position:relative;
+  }
+  .name-btn .status-tag{
+    display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;
+    text-transform:uppercase;letter-spacing:.05em;margin-top:5px;color:#8a8570;
+  }
+  .name-btn.is-in .status-tag{color:var(--stamp);}
+  .name-btn:hover{border-color:var(--ink);}
+  .name-btn:active{transform:scale(.97);}
+
+  .confirm-panel{text-align:center;padding:20px 0;}
+  .confirm-panel .who{font-family:'Oswald',sans-serif;font-size:32px;margin:6px 0 4px;}
+  .confirm-panel .when{font-family:'IBM Plex Mono',monospace;color:#5b5646;font-size:13px;margin-bottom:26px;}
+  .stamp-btn{
+    background:var(--ink);color:var(--paper);border:none;border-radius:5px;
+    font-family:'Oswald',sans-serif;font-size:18px;letter-spacing:.06em;
+    padding:18px 40px;text-transform:uppercase;transition:transform .12s, background .15s;
+  }
+  .stamp-btn.out{background:var(--stamp-out);}
+  .stamp-btn:hover{background:#000;}
+  .stamp-btn.out:hover{background:#7346d6;}
+  .stamp-btn:active{transform:scale(.96) rotate(-1deg);}
+  .back-link{
+    display:block;margin-top:18px;background:none;border:none;color:#8a8570;
+    font-size:13px;text-decoration:underline;
+  }
+
+  .ticket{
+    text-align:center;padding:10px 0 6px;
+    animation:stampIn .35s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes stampIn{
+    0%{opacity:0;transform:scale(1.4) rotate(-8deg);}
+    60%{opacity:1;transform:scale(.95) rotate(2deg);}
+    100%{opacity:1;transform:scale(1) rotate(-2deg);}
+  }
+  .ticket .badge{
+    display:inline-block;border:3px solid var(--stamp);color:var(--stamp);
+    border-radius:8px;padding:10px 22px;font-family:'Oswald',sans-serif;
+    font-size:22px;letter-spacing:.05em;transform:rotate(-2deg);
+  }
+  .ticket .badge.out{border-color:var(--stamp-out);color:var(--stamp-out);transform:rotate(2deg);}
+  .ticket .name{font-size:20px;margin:16px 0 2px;color:var(--ink);font-weight:600;}
+  .ticket .ts{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#5b5646;}
+  .ticket .note{margin-top:22px;font-size:12px;color:#8a8570;}
+
+  .already{text-align:center;padding:24px 0;}
+  .already .badge{
+    display:inline-block;border:2px dashed var(--alert);color:var(--alert);
+    border-radius:8px;padding:10px 20px;font-family:'IBM Plex Mono',monospace;font-size:13px;
+  }
+  .already p{color:#5b5646;font-size:13px;margin:16px 0 0;line-height:1.5;}
+
+  .grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;}
+  @media (max-width:720px){.grid2{grid-template-columns:1fr;}}
+  .panel{
+    background:var(--ink-2);border:1px solid #333A47;border-radius:6px;padding:20px;
+  }
+  .panel h2{font-size:15px;color:var(--paper);margin-bottom:14px;letter-spacing:.05em;}
+  .today-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 0;border-bottom:1px solid #303645;font-size:14px;
+  }
+  .today-row:last-child{border-bottom:none;}
+  .today-row .n{font-weight:500;}
+  .today-row .t{font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--accent);}
+  .today-row .t.pending{color:var(--text-dim);}
+  .today-row .t.out{color:var(--stamp-out);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{
+    text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    letter-spacing:.08em;text-transform:uppercase;color:var(--text-dim);
+    padding:6px 8px;border-bottom:1px solid #333A47;
+  }
+  td{padding:8px;border-bottom:1px solid #262B36;font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+  .tag-in{color:var(--accent);}
+  .tag-out{color:var(--stamp-out);}
+  .log-scroll{max-height:320px;overflow-y:auto;}
+
+  .qr-wrap{text-align:center;}
+  .qr-wrap canvas{background:#fff;padding:12px;border-radius:6px;}
+  .qr-url{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--text-dim);word-break:break-all;margin-top:10px;}
+
+  .emp-manage{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .emp-chip{
+    background:#303645;border:1px solid #3A4150;border-radius:20px;padding:6px 8px 6px 14px;
+    font-size:12.5px;display:flex;align-items:center;gap:8px;
+  }
+  .emp-chip button{
+    background:none;border:none;color:var(--alert);font-size:14px;line-height:1;padding:2px;
+  }
+  .add-row{display:flex;gap:8px;}
+  .add-row input{
+    flex:1;background:#1B1F27;border:1px solid #3A4150;border-radius:4px;
+    color:var(--paper);padding:9px 10px;font-size:13px;font-family:inherit;
+  }
+  .add-row button{
+    background:var(--accent);color:var(--accent-ink);border:none;border-radius:4px;
+    padding:9px 16px;font-weight:600;font-size:13px;
+  }
+  .small-btn{
+    background:none;border:1px solid #3A4150;color:var(--text-dim);border-radius:4px;
+    padding:7px 12px;font-size:12px;
+  }
+  .small-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .btn-row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;}
+  .empty-note{color:var(--text-dim);font-size:13px;padding:8px 0;}
+  .loading{color:var(--text-dim);font-size:13px;}
+  .fine-print{color:var(--text-dim);font-size:11.5px;margin-top:10px;line-height:1.5;}
+
+  .error-banner{
+    background:#3A1414;border:1px solid var(--alert);color:#FFD8CC;
+    border-radius:5px;padding:12px 14px;margin-bottom:18px;font-size:13px;
+    font-family:'IBM Plex Mono',monospace;line-height:1.5;
+  }
+
+  @media print{
+    body *{visibility:hidden;}
+    .qr-wrap, .qr-wrap *{visibility:visible;}
+    .qr-wrap{position:absolute;top:40px;left:0;right:0;}
+  }
+</style>
+</head>
+<body>
+<div class="shell" id="app">
+  <div class="loading">Loading…</div>
+</div>
+
+<script>
+(function(){
+  const params = new URLSearchParams(window.location.search);
+  const isDashboard = params.has('dashboard');
+  const baseUrl = window.location.origin + window.location.pathname;
+  const app = document.getElementById('app');
+
+  function urlWithApi(extra){
+    const u = new URL(baseUrl);
+    if(API_URL) u.searchParams.set('api', API_URL);
+    Object.keys(extra||{}).forEach(k => u.searchParams.set(k, extra[k]));
+    return u.toString();
+  }
+  function kioskUrl(){ return urlWithApi({}); }
+  function dashboardUrl(){ return urlWithApi({ dashboard: '1' }); }
+
+  // The Apps Script backend URL lives in the page's own link (?api=...),
+  // set once via the config screen so it never needs editing in code.
+  let API_URL = params.get('api') || '';
+  const WINDOW_MS = 8 * 60 * 60 * 1000;
+
+  function getDeviceId(){
+    const parts = [
+      navigator.userAgent,
+      navigator.platform,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      navigator.hardwareConcurrency,
+      new Date().getTimezoneOffset()
+    ].join('||');
+    let hash = 0;
+    for(let i=0;i<parts.length;i++){
+      hash = ((hash << 5) - hash) + parts.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'dev_' + Math.abs(hash).toString(36);
+  }
+  const deviceId = getDeviceId();
+
+  let lastStorageError = null;
+
+  function noteError(action, e){
+    lastStorageError = `${action} failed: ${e && e.message ? e.message : e}`;
+    console.error(lastStorageError, e);
+  }
+
+  async function apiTest(candidateUrl){
+    lastStorageError = null;
+    const url = candidateUrl || API_URL;
+    if(!url){
+      lastStorageError = 'No backend URL set yet.';
+      return false;
+    }
+    try{
+      const res = await fetch(`${url}?action=employees`);
+      if(!res.ok){
+        lastStorageError = `Backend responded with HTTP ${res.status}. Check the deployment is set to "Anyone" access.`;
+        return false;
+      }
+      const data = await res.json();
+      if(data && data.error){
+        lastStorageError = `Backend error: ${data.error}`;
+        return false;
+      }
+      return true;
+    }catch(e){
+      noteError('Reaching the backend', e);
+      return false;
+    }
+  }
+
+  async function apiPost(payload){
+    try{
+      const res = await fetch(API_URL, { method:'POST', body: JSON.stringify(payload) });
+      const data = await res.json();
+      if(data && data.error){ throw new Error(data.error); }
+      return true;
+    }catch(e){
+      noteError(payload.action, e);
+      return false;
+    }
+  }
+
+  async function getEmployees(){
+    try{
+      const res = await fetch(`${API_URL}?action=employees`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }catch(e){
+      noteError('Loading employees', e);
+      return [];
+    }
+  }
+  async function addEmployeeApi(name){
+    return apiPost({ action:'addEmployee', name });
+  }
+  async function removeEmployeeApi(name){
+    return apiPost({ action:'removeEmployee', name });
+  }
+  async function getLog(){
+    try{
+      const res = await fetch(`${API_URL}?action=log`);
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }catch(e){
+      noteError('Loading attendance log', e);
+      return [];
+    }
+  }
+  async function addEntryApi(entry){
+    return apiPost({ action:'addEntry', name: entry.name, type: entry.type, ts: entry.ts, deviceId: entry.deviceId });
+  }
+  async function clearLogApi(){
+    return apiPost({ action:'clearLog' });
+  }
+  function errorBannerHtml(){
+    return lastStorageError
+      ? `<div class="error-banner">⚠ ${escapeHtml(lastStorageError)}<br>Changes won't be saved until this is resolved.</div>`
+      : '';
+  }
+  function fmtTime(iso){
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  }
+  function todayKey(){
+    return new Date().toDateString();
+  }
+  function lastEntryFor(name, log){
+    const entries = log.filter(e=>e.name===name).sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+    return entries[0] || null;
+  }
+  function currentStatus(name, log){
+    const last = lastEntryFor(name, log);
+    if(!last) return 'out';
+    return last.type;
+  }
+  function deviceConflict(name, log){
+    const cutoff = Date.now() - WINDOW_MS;
+    const conflict = log.find(e => e.deviceId===deviceId && e.name!==name && new Date(e.ts).getTime() > cutoff);
+    return conflict || null;
+  }
+
+  // ============ CONFIG (first-run / settings) ============
+  function renderConfig(forDashboard, prefill){
+    app.innerHTML = `
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance — Setup</span></div>
+      </div>
+      <div class="kiosk-card" id="card">
+        <div class="kiosk-head">
+          <h1>Connect your backend</h1>
+          <p>Paste the Web App URL from your deployed <code>attendance-backend.gs</code> script.</p>
+        </div>
+        <div class="add-row" style="margin-bottom:10px;">
+          <input type="text" id="apiInput" placeholder="https://script.google.com/macros/s/.../exec" value="${escapeHtml(prefill||'')}">
+        </div>
+        <button class="stamp-btn" id="saveApiBtn" style="width:100%;padding:14px;font-size:15px;">Save &amp; Continue</button>
+        <div id="configMsg" style="margin-top:14px;font-size:13px;color:#8a8570;"></div>
+        <div class="fine-print" style="margin-top:18px;color:#8a8570;">
+          Don't have this yet? Create a Google Sheet → Extensions → Apps Script → paste in
+          attendance-backend.gs → Deploy → New deployment → Web app (Anyone can access) →
+          copy the URL it gives you.
+        </div>
+      </div>
+    `;
+    const msg = document.getElementById('configMsg');
+    document.getElementById('saveApiBtn').addEventListener('click', async ()=>{
+      const val = document.getElementById('apiInput').value.trim();
+      if(!val){ msg.textContent = 'Paste a URL first.'; msg.style.color = 'var(--alert)'; return; }
+      msg.textContent = 'Checking connection…';
+      msg.style.color = '#8a8570';
+      const ok = await apiTest(val);
+      if(!ok){
+        msg.textContent = lastStorageError;
+        msg.style.color = 'var(--alert)';
+        return;
+      }
+      API_URL = val;
+      history.replaceState(null, '', forDashboard ? dashboardUrl() : kioskUrl());
+      if(forDashboard) renderDashboard(true); else renderKiosk();
+    });
+  }
+
+  async function renderKiosk(){
+    if(!API_URL){ renderConfig(false); return; }
+    await apiTest();
+    app.innerHTML = `
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance</span></div>
+        <a class="mode-link" href="${dashboardUrl()}">Dashboard →</a>
+      </div>
+      ${errorBannerHtml()}
+      <div class="kiosk-card" id="card">
+        <div class="loading">Loading employee list…</div>
+      </div>
+    `;
+    const card = document.getElementById('card');
+    const employees = await getEmployees();
+
+    if(!employees.length){
+      card.innerHTML = `
+        <div class="kiosk-head">
+          <h1>Check In / Out</h1>
+          <p>No employees set up yet.</p>
+        </div>
+        <p style="color:#8a8570;font-size:14px;">Open the <a href="${dashboardUrl()}" style="color:var(--ink);">dashboard</a> on your laptop and add names first.</p>
+      `;
+      return;
+    }
+    showNamePicker(card, employees);
+  }
+
+  async function showNamePicker(card, employees){
+    card.innerHTML = `
+      <div class="kiosk-head">
+        <h1>Check In / Out</h1>
+        <p>Tap your name to record attendance</p>
+      </div>
+      <div class="name-grid" id="nameGrid"></div>
+    `;
+    const log = await getLog();
+    const grid = document.getElementById('nameGrid');
+    grid.innerHTML = employees.map((n,i)=>{
+      const status = currentStatus(n, log);
+      return `<button class="name-btn ${status==='in'?'is-in':''}" data-i="${i}">
+        ${escapeHtml(n)}<span class="status-tag">${status==='in' ? 'on site' : 'off site'}</span>
+      </button>`;
+    }).join('');
+    grid.querySelectorAll('.name-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=> showConfirm(card, employees, employees[btn.dataset.i]));
+    });
+  }
+
+  async function showConfirm(card, employees, name){
+    const log = await getLog();
+    const conflict = deviceConflict(name, log);
+    if(conflict){
+      showConflict(card, employees, conflict);
+      return;
+    }
+    const action = currentStatus(name, log) === 'in' ? 'out' : 'in';
+    const now = new Date();
+    card.innerHTML = `
+      <div class="confirm-panel">
+        <div class="eyebrow" style="color:#8a8570;">Confirm ${action==='in'?'check-in':'check-out'}</div>
+        <div class="who">${escapeHtml(name)}</div>
+        <div class="when">${now.toLocaleDateString()} · ${fmtTime(now)}</div>
+        <button class="stamp-btn ${action==='out'?'out':''}" id="stampBtn">Stamp ${action==='in'?'Check-In':'Check-Out'}</button>
+        <button class="back-link" id="backBtn">← Not me, go back</button>
+      </div>
+    `;
+    document.getElementById('backBtn').addEventListener('click', ()=>showNamePicker(card, employees));
+    document.getElementById('stampBtn').addEventListener('click', async ()=>{
+      document.getElementById('stampBtn').textContent = 'Stamping…';
+      const freshLog = await getLog();
+      const freshConflict = deviceConflict(name, freshLog);
+      if(freshConflict){ showConflict(card, employees, freshConflict); return; }
+      const dupe = freshLog.find(e => e.name===name && e.type===action && (Date.now()-new Date(e.ts).getTime()) < 60*1000);
+      if(dupe){ showTicket(card, employees, dupe); return; }
+      const entry = {name, ts: new Date().toISOString(), type: action, deviceId};
+      const ok = await addEntryApi(entry);
+      if(!ok){
+        card.innerHTML = `<div class="already"><div class="badge">⚠ Couldn't save</div>
+          <p>${escapeHtml(lastStorageError || 'Please try again.')}</p>
+          <button class="back-link" id="okBtn" style="margin-top:16px;">← Back</button></div>`;
+        document.getElementById('okBtn').addEventListener('click', ()=>showNamePicker(card, employees));
+        return;
+      }
+      showTicket(card, employees, entry);
+    });
+  }
+
+  function showConflict(card, employees, conflict){
+    card.innerHTML = `
+      <div class="already">
+        <div class="badge">This phone is locked to ${escapeHtml(conflict.name)}</div>
+        <p>It recorded a ${conflict.type==='in'?'check-in':'check-out'} for ${escapeHtml(conflict.name)} at ${fmtTime(conflict.ts)}.
+        Each phone can only be used for one person's attendance every 8 hours — please use your own device.</p>
+        <button class="back-link" id="okBtn" style="margin-top:16px;">← Back</button>
+      </div>
+    `;
+    document.getElementById('okBtn').addEventListener('click', ()=>showNamePicker(card, employees));
+  }
+
+  function showTicket(card, employees, entry){
+    const isIn = entry.type === 'in';
+    card.innerHTML = `
+      <div class="ticket">
+        <div class="badge ${isIn?'':'out'}">${isIn?'✓ Checked In':'✓ Checked Out'}</div>
+        <div class="name">${escapeHtml(entry.name)}</div>
+        <div class="ts">${new Date(entry.ts).toLocaleDateString()} · ${fmtTime(entry.ts)}</div>
+        <div class="note">Returning to name list…</div>
+      </div>
+    `;
+    setTimeout(()=>showNamePicker(card, employees), 2500);
+  }
+
+  let pollTimer;
+  async function renderDashboard(skipTest){
+    if(!API_URL){ renderConfig(true); return; }
+    if(!skipTest) await apiTest();
+    app.innerHTML = `
+      <div class="topbar">
+        <div class="brand"><span class="dot"></span><span class="eyebrow">Site Attendance — Dashboard</span></div>
+        <div style="display:flex;gap:8px;">
+          <a class="mode-link" href="${kioskUrl()}">Kiosk view →</a>
+          <a class="mode-link" href="#" id="settingsLink">⚙ Settings</a>
+        </div>
+      </div>
+      ${errorBannerHtml()}
+      <div class="grid2">
+        <div>
+          <div class="panel" style="margin-bottom:20px;">
+            <h2 id="todayTitle">Today</h2>
+            <div id="todayList"><div class="loading">Loading…</div></div>
+          </div>
+          <div class="panel">
+            <h2>Full Log</h2>
+            <div class="log-scroll"><table>
+              <thead><tr><th>Name</th><th>Type</th><th>Date</th><th>Time</th></tr></thead>
+              <tbody id="logBody"></tbody>
+            </table></div>
+            <div class="btn-row">
+              <button class="small-btn" id="exportBtn">Export CSV</button>
+              <button class="small-btn" id="clearBtn">Clear log</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:20px;">
+            <h2>Employees</h2>
+            <div class="emp-manage" id="empChips"></div>
+            <div class="add-row">
+              <input type="text" id="addInput" placeholder="Add employee name">
+              <button id="addBtn">Add</button>
+            </div>
+          </div>
+          <div class="panel">
+            <h2>Site QR Code</h2>
+            <div class="qr-wrap">
+              <canvas id="qrCanvas"></canvas>
+              <div class="qr-url">${kioskUrl()}</div>
+            </div>
+            <div class="btn-row" style="justify-content:center;">
+              <button class="small-btn" id="printBtn">Print QR</button>
+            </div>
+            <div class="fine-print">Each phone can only clock in/out one person's attendance within an 8-hour window, based on a device fingerprint — helps prevent buddy check-ins.</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    new QRious({element: document.getElementById('qrCanvas'), value: kioskUrl(), size: 200, background:'#fff', foreground:'#1B1F27'});
+
+    document.getElementById('printBtn').addEventListener('click', ()=>window.print());
+    document.getElementById('settingsLink').addEventListener('click', (e)=>{
+      e.preventDefault();
+      if(pollTimer) clearInterval(pollTimer);
+      renderConfig(true, API_URL);
+    });
+    document.getElementById('addBtn').addEventListener('click', addEmployee);
+    document.getElementById('addInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addEmployee(); });
+    document.getElementById('exportBtn').addEventListener('click', exportCsv);
+    document.getElementById('clearBtn').addEventListener('click', clearLog);
+
+    await refreshDashboard();
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(refreshDashboard, 4000);
+  }
+
+  async function refreshDashboard(){
+    const [employees, log] = await Promise.all([getEmployees(), getLog()]);
+    renderEmpChips(employees);
+    renderToday(employees, log);
+    renderLogTable(log);
+  }
+
+  function renderEmpChips(employees){
+    const wrap = document.getElementById('empChips');
+    if(!wrap) return;
+    if(!employees.length){
+      wrap.innerHTML = `<div class="empty-note">No employees yet — add names below.</div>`;
+      return;
+    }
+    wrap.innerHTML = employees.map((n,i)=>`
+      <div class="emp-chip">${escapeHtml(n)} <button data-i="${i}" title="Remove">✕</button></div>
+    `).join('');
+    wrap.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        await removeEmployeeApi(employees[btn.dataset.i]);
+        refreshDashboard();
+      });
+    });
+  }
+
+  async function addEmployee(){
+    const input = document.getElementById('addInput');
+    const name = input.value.trim();
+    if(!name) return;
+    const ok = await addEmployeeApi(name);
+    input.value = '';
+    if(!ok){
+      renderDashboard(true);
+      return;
+    }
+    refreshDashboard();
+  }
+
+  function renderToday(employees, log){
+    const el = document.getElementById('todayList');
+    const title = document.getElementById('todayTitle');
+    title.textContent = `Today — ${new Date().toLocaleDateString()}`;
+    if(!employees.length){
+      el.innerHTML = `<div class="empty-note">Add employees to see today's attendance.</div>`;
+      return;
+    }
+    el.innerHTML = employees.map(name=>{
+      const last = lastEntryFor(name, log);
+      const lastToday = last && new Date(last.ts).toDateString() === todayKey();
+      let label, cls;
+      if(!last){ label = 'not checked in'; cls = 'pending'; }
+      else if(last.type === 'in'){ label = `in since ${fmtTime(last.ts)}`; cls = ''; }
+      else { label = lastToday ? `out at ${fmtTime(last.ts)}` : 'not checked in'; cls = lastToday ? 'out' : 'pending'; }
+      return `<div class="today-row">
+        <span class="n">${escapeHtml(name)}</span>
+        <span class="t ${cls}">${label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderLogTable(log){
+    const body = document.getElementById('logBody');
+    if(!log.length){
+      body.innerHTML = `<tr><td colspan="4" class="empty-note">No check-ins yet.</td></tr>`;
+      return;
+    }
+    const sorted = [...log].sort((a,b)=> new Date(b.ts)-new Date(a.ts));
+    body.innerHTML = sorted.map(e=>`
+      <tr><td>${escapeHtml(e.name)}</td><td class="${e.type==='in'?'tag-in':'tag-out'}">${e.type==='in'?'IN':'OUT'}</td><td>${new Date(e.ts).toLocaleDateString()}</td><td>${fmtTime(e.ts)}</td></tr>
+    `).join('');
+  }
+
+  async function exportCsv(){
+    const log = await getLog();
+    const rows = [['Name','Type','Date','Time','ISO Timestamp']];
+    [...log].sort((a,b)=>new Date(a.ts)-new Date(b.ts)).forEach(e=>{
+      rows.push([e.name, e.type==='in'?'IN':'OUT', new Date(e.ts).toLocaleDateString(), fmtTime(e.ts), e.ts]);
+    });
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `attendance-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  async function clearLog(){
+    if(!confirm('Clear the entire attendance log? This cannot be undone.')) return;
+    await clearLogApi();
+    refreshDashboard();
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  if(isDashboard){ renderDashboard(); } else { renderKiosk(); }
+})();
+</script>
+</body>
+</html>
